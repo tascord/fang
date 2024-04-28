@@ -1,21 +1,16 @@
 %%
 
-[0-9]+ "INTEGER"
 [0-9]+\.[0-9]+ "FLOAT"
-"(?:[^"\\]|\\.)*" "STRING"
-true|false "BOOLEAN"
+[0-9]+ "INTEGER"
+\"(?:[^\\"]|\\.)*\" "STRING"
 
 \*\* "POW"
 == "EQUALITY"
 
 \+ "ADD"
 \- "SUB"
-\* "MULT"
+\* "MUL"
 \/ "DIV"
-
-let "DECLARATION"
-: "TYPEDEC"
-= "ASSIGNMENT"
 
 \( "LPAREN"
 \) "RPAREN"
@@ -24,6 +19,19 @@ let "DECLARATION"
 \< "LTRI"
 \> "RTRI"
 
-int|str|float|bool "TYPE"
+, ","
+: "TYPE"
+= "ASSIGNMENT"
+let "DECLARATION"
+pub|local "VISIBILITY"
+fn "FUNCTION"
+
+println! "PRINTLN"
+
+true|false "BOOLEAN"
+[A-z0-9_]+ "IDENTIFIER"
+
+; ";"
 
 [\t\n ]+ ;
+\/\/[^\n]*?$ ;

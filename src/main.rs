@@ -1,10 +1,16 @@
-use std::env::args;
+use std::{env::args, fs::File, io::Read};
 
+use bytecode::eval_bytecode;
 use lrlex::lrlex_mod;
 use lrpar::lrpar_mod;
+use scope::GLOBAL_SCOPE;
 
 lrlex_mod!("fang.l");
 lrpar_mod!("fang.y");
+
+pub mod ast;
+pub mod bytecode;
+pub mod scope;
 
 fn main() {
     let args: Vec<String> = args().collect();
@@ -13,23 +19,32 @@ fn main() {
         std::process::exit(1);
     }
 
-    let input = &args[1];
+    let input = {
+        let mut s = String::new();
+        let mut f = File::open(&args[1]).unwrap();
+        f.read_to_string(&mut s).unwrap();
+        s
+    };
+
     let def = fang_l::lexerdef();
     let lexer = def.lexer(&input);
     let (res, err) = fang_y::parse(&lexer);
+
+    if err.len() > 0 {
+        eprintln!("Unable to parse:");
+    }
+
     for e in err {
-        eprintln!("{}", e.pp(&lexer, &fang_y::token_epp));
+        eprintln!("\t- {}", e.pp(&lexer, &fang_y::token_epp));
     }
 
     match res {
-        Some(Ok(r)) => {
-            println!("{r:?}");
+        Some(Ok(ast)) => eval_bytecode(ast, &mut GLOBAL_SCOPE.clone())
+            .map_err(|e| eprintln!("{}", e))
+            .ok(),
+        v => {
+            eprintln!("Unable to evaluate: {v:?}");
+            Some(())
         }
-        Some(Err(e)) => {
-            eprintln!("{e:?}");
-        }
-        None => {
-            eprintln!("Parse failed");
-        }
-    }
+    };
 }

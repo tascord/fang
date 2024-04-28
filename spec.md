@@ -1,13 +1,13 @@
 # FANG Spec Sheet
 
-### Datatypes
+### Datatypes (done!)
 - Integer `int`
 - Floating Point `float`
 - String `str`
 - Boolean `bool`
 ---
 
-### Variable declaration
+### Variable declaration (no explicit types yet)
 ```
 let a = 1;
 let b: int = 2;
@@ -16,19 +16,19 @@ let d: str = "fang";
 let e: bool = false;
 ```
 
-### Function declaration
+### Function declaration (no return types / visibility yet)
 ```
 pub fn a(p: int): int {
 	p ** 2
 } 
 ```
 
-### Lambda declaration
+### Lambda declaration (not done)
 ```
 let a = |p: int|: int { p ** 2 }; 
 ```
 
-### Array declaration
+### Array declaration (not done)
 ```
 let a: Arr<str> = [
 	"Hello",
@@ -42,7 +42,7 @@ let b: Arr<str + int> = [
 ];
 ```
 
-### Object declaration
+### Object declaration (not done)
 ```
 struct A = {
 	author: str,
