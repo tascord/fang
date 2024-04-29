@@ -9,7 +9,6 @@ StatementList -> FRes<Vec<Node>>:
 Statement -> FRes<Node>:
     ';' { Ok(Node::Empty) }
     | Expression ';' { $1 }
-    | Builtins { $1 }
     | Function { $1 }
     ;
 
@@ -68,7 +67,7 @@ Division -> FRes<Node>:
     ;
 
 TypedVariable -> FRes<Node>:
-    'IDENTIFIER' 'TYPE' 'IDENTIFIER' { Ok(type_var($lexer.span_str(($1.map_err(|_| ())?).span()), $lexer.span_str(($3.map_err(|_| ())?).span())))? }
+    'IDENTIFIER' 'COLON' 'IDENTIFIER' { Ok(type_var($lexer.span_str(($1.map_err(|_| ())?).span()), $lexer.span_str(($3.map_err(|_| ())?).span())))? }
     ;
 
 TypedVariableList -> FRes<Vec<Node>>:
@@ -83,6 +82,7 @@ PrimaryExpression -> FRes<Node>:
     | 'FLOAT' { parse_float($lexer.span_str(($1.map_err(|_| ())?).span())) }
     | 'BOOLEAN' { parse_bool($lexer.span_str(($1.map_err(|_| ())?).span())) }
     | 'STRING' { parse_string($lexer.span_str(($1.map_err(|_| ())?).span())) }
+    | Object { $1 }
     ;
 
 Function -> FRes<Node>:
@@ -95,8 +95,18 @@ FunctionCall -> FRes<Node>:
     'IDENTIFIER' 'LPAREN' ExpressionList 'RPAREN' { Ok(Node::Call { name: $lexer.span_str(($1.map_err(|_| ())?).span()).to_string(), args: Box::new($3.map_err(|_| ())?) }) }
     ;
 
-Builtins -> FRes<Node>:
-    'PRINTLN' 'LPAREN' Expression 'RPAREN' { Ok(Node::Out{ val: Box::new($3?) }) }
+Object -> FRes<Node>:
+    'LBRACE' 'RBRACE' { Ok(Node::Object { fields: Box::new(vec![]) }) }
+    | 'LBRACE' ObjectFields 'RBRACE' { Ok(Node::Object { fields: Box::new($2.map_err(|_| ())?) }) }
+    ;
+
+ObjectFields -> FRes<Vec<Node>>:
+    ObjectFields ',' ObjectField { append($1.map_err(|_| ())?, $3.map_err(|_| ())?)}
+    | ObjectField { Ok(vec![$1.map_err(|_| ())?]) }
+    ;
+
+ObjectField -> FRes<Node>:
+    'IDENTIFIER' 'COLON' Expression { Ok(Node::Field { name: $lexer.span_str(($1.map_err(|_| ())?).span()).to_string(), value: Box::new($3.map_err(|_| ())?) }) }
     ;
 
 %%

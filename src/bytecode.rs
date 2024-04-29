@@ -1,5 +1,5 @@
 use crate::{
-    ast::{standardize_types, Node},
+    ast::{standardize_types, BuiltinFnBody, Node},
     scope::Scope,
 };
 
@@ -35,6 +35,9 @@ pub enum Op {
     },
 
     Print,
+    BuiltinCall {
+        body: BuiltinFnBody,
+    },
 }
 
 pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
@@ -77,6 +80,9 @@ pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
         Node::Identifier { val } => {
             ops.push(Op::Load { name: val });
         }
+        Node::Object { fields } => ops.push(Op::Push {
+            value: Node::Object { fields },
+        }),
         Node::Function { name, args, body } => {
             ops.push(Op::Function {
                 name,
@@ -90,6 +96,7 @@ pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
             }
             ops.push(Op::Call { name });
         }
+        Node::BuiltinFn { body, .. } => ops.push(Op::BuiltinCall { body }),
 
         Node::Empty => (),
         Node::Out { val } => {
@@ -235,6 +242,11 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                 }
 
                 scope.call(&name, props)?;
+            }
+            Op::BuiltinCall { body } => {
+                if let Some(val) = body.0(scope) {
+                    stack.push(val);
+                };
             }
 
             Op::Print => println!("{}", stack.pop().unwrap().inspect()),

@@ -1,1 +1,1 @@
-fn add(a: int, b: int) { println!(a + b); } add(2 + 2, 6);
+let flora = { age: 19, favourite_colour: "pink" }; console.ln(flora.favourite_colour);

@@ -1,4 +1,23 @@
+use std::{
+    fmt::{self, Debug, Formatter},
+    rc::Rc,
+};
+
 use crate::scope::Scope;
+
+#[derive(Clone)]
+pub struct BuiltinFnBody(pub Rc<dyn Fn(&Scope) -> Option<Node>>);
+impl Debug for BuiltinFnBody {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "<Builtin Function>")
+    }
+}
+
+impl PartialEq for BuiltinFnBody {
+    fn eq(&self, _: &Self) -> bool {
+        false
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
@@ -57,6 +76,19 @@ pub enum Node {
     Call {
         name: String,
         args: Box<Vec<Node>>,
+    },
+    BuiltinFn {
+        name: String,
+        args: Box<Vec<Node>>,
+        body: BuiltinFnBody,
+    },
+
+    Object {
+        fields: Box<Vec<Node>>,
+    },
+    Field {
+        name: String,
+        value: Box<Node>,
     },
 
     Empty,
@@ -120,8 +152,25 @@ impl Node {
             Node::Boolean { val } => val.to_string(),
             Node::Identifier { val } => val.to_string(),
             Node::TypedVariable { name, .. } => name.to_string(),
+            Node::Function { name, .. } => format!("<Function: {name}>"),
+            Node::Object { fields } => {
+                let mut res = "{".to_string();
+                for field in fields.iter() {
+                    match field {
+                        Node::Field { name, value } => {
+                            if res.len() > 1 {
+                                res.push_str(", ");
+                            }
+                            res.push_str(&format!("{}: {}", name, value.inspect()));
+                        }
+                        _ => {}
+                    }
+                }
+                res.push_str("}");
+                res
+            }
 
-            a => format!("{:?}", a),
+            a => format!("<Internal: {:?}>", a.get_type()),
         }
     }
 
@@ -134,7 +183,7 @@ impl Node {
             Node::TypedVariable { var_type, .. } => var_type.clone(),
             Node::Function { name, .. } => format!("<Function: '{}'>", name),
 
-            _ => format!("<Internal :: {:?}>", self),
+            _ => format!("<Internal: {:?}>", self),
         }
     }
 

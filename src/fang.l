@@ -20,16 +20,14 @@
 \> "RTRI"
 
 , ","
-: "TYPE"
+: "COLON"
 = "ASSIGNMENT"
 let "DECLARATION"
 pub|local "VISIBILITY"
 fn "FUNCTION"
 
-println! "PRINTLN"
-
 true|false "BOOLEAN"
-[A-z0-9_]+ "IDENTIFIER"
+[A-z0-9_.]+ "IDENTIFIER"
 
 ; ";"
 
