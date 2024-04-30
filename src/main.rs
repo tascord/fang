@@ -1,4 +1,8 @@
-use std::{env::args, fs::File, io::Read};
+use std::{
+    env::args,
+    fs::{self, File},
+    io::Read,
+};
 
 use bytecode::eval_bytecode;
 use lrlex::lrlex_mod;
@@ -10,6 +14,7 @@ lrpar_mod!("fang.y");
 
 pub mod ast;
 pub mod bytecode;
+pub mod errs;
 pub mod scope;
 
 fn main() {
@@ -39,12 +44,15 @@ fn main() {
     }
 
     match res {
-        Some(Ok(ast)) => eval_bytecode(ast, &mut GLOBAL_SCOPE.clone())
-            .map_err(|e| eprintln!("{}", e))
-            .ok(),
-        v => {
-            eprintln!("Unable to evaluate: {v:?}");
-            Some(())
+        Some(Ok(ast)) => {
+            fs::write("./fg.ast", format!("{ast:#?}")).unwrap();
+            eval_bytecode(ast, &mut GLOBAL_SCOPE.clone())
+                .map_err(|e| eprintln!("{}", e.to_string()))
+                .ok()
+        }
+        _ => {
+            eprintln!("\nFang Failed :(");
+            panic!()
         }
     };
 }

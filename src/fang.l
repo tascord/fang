@@ -6,7 +6,6 @@
 
 \*\* "POW"
 == "EQUALITY"
-
 \+ "ADD"
 \- "SUB"
 \* "MUL"
@@ -25,11 +24,14 @@
 let "DECLARATION"
 pub|local "VISIBILITY"
 fn "FUNCTION"
+struct "STRUCT"
+trait "TRAIT"
+return "RETURN"
 
 true|false "BOOLEAN"
 [A-z0-9_.]+ "IDENTIFIER"
 
 ; ";"
 
-[\t\n ]+ ;
-\/\/[^\n]*?$ ;
+[ \t\n\r]+ ;
+\/\/[^\n]*\n ;

@@ -1,5 +1,6 @@
 use crate::{
     ast::{standardize_types, BuiltinFnBody, Node},
+    errs::FangErr,
     scope::Scope,
 };
 
@@ -32,12 +33,14 @@ pub enum Op {
         name: String,
         args: Vec<Node>,
         body: Vec<Node>,
+        return_type: Option<String>,
     },
 
-    Print,
     BuiltinCall {
         body: BuiltinFnBody,
     },
+
+    Return,
 }
 
 pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
@@ -80,14 +83,20 @@ pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
         Node::Identifier { val } => {
             ops.push(Op::Load { name: val });
         }
-        Node::Object { fields } => ops.push(Op::Push {
-            value: Node::Object { fields },
+        Node::Object { fields, typed } => ops.push(Op::Push {
+            value: Node::Object { fields, typed },
         }),
-        Node::Function { name, args, body } => {
+        Node::Function {
+            name,
+            args,
+            body,
+            return_type,
+        } => {
             ops.push(Op::Function {
                 name,
                 args: *args,
                 body: *body,
+                return_type,
             });
         }
         Node::Call { name, args } => {
@@ -98,17 +107,17 @@ pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
         }
         Node::BuiltinFn { body, .. } => ops.push(Op::BuiltinCall { body }),
 
-        Node::Empty => (),
-        Node::Out { val } => {
-            ast_to_bytecode(*val, ops);
-            ops.push(Op::Print {});
+        Node::Return { value } => {
+            ast_to_bytecode(*value, ops);
+            ops.push(Op::Return);
         }
 
+        Node::Empty => (),
         literal => ops.push(Op::Push { value: literal }),
     }
 }
 
-pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
+pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, FangErr> {
     let mut ops = Vec::new();
 
     for node in ast {
@@ -116,9 +125,10 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
     }
 
     let mut stack = Vec::<Node>::new();
-    for op in ops {
-        match op {
-            Op::Push { value } => stack.push(value),
+    let mut i = 0;
+    while i < ops.len() {
+        match &ops[i] {
+            Op::Push { value } => stack.push(value.clone()),
             Op::Add => {
                 let (a, b) = standardize_types(
                     stack.pop().unwrap().boxed(),
@@ -135,7 +145,14 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                     (Node::String { val: a }, Node::String { val: b }) => {
                         stack.push(Node::String { val: a + &b })
                     }
-                    _ => return Err("Failed to add".to_string()),
+                    (a, b) => {
+                        return Err(FangErr::OperationUnsupported {
+                            op: "add".to_string(),
+                            lhs: a.inspect(),
+                            rhs: b.inspect(),
+                            scope: scope.name.clone(),
+                        })
+                    }
                 }
             }
             Op::Subtract => {
@@ -151,7 +168,14 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                     (Node::Float { val: a }, Node::Float { val: b }) => {
                         stack.push(Node::Float { val: a - b })
                     }
-                    _ => return Err("Failed to subtract".to_string()),
+                    (a, b) => {
+                        return Err(FangErr::OperationUnsupported {
+                            op: "subtract".to_string(),
+                            lhs: a.inspect(),
+                            rhs: b.inspect(),
+                            scope: scope.name.clone(),
+                        })
+                    }
                 }
             }
             Op::Multiply => {
@@ -167,7 +191,14 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                     (Node::Float { val: a }, Node::Float { val: b }) => {
                         stack.push(Node::Float { val: a * b })
                     }
-                    _ => return Err("Failed to multiply".to_string()),
+                    (a, b) => {
+                        return Err(FangErr::OperationUnsupported {
+                            op: "multiply".to_string(),
+                            lhs: a.inspect(),
+                            rhs: b.inspect(),
+                            scope: scope.name.clone(),
+                        })
+                    }
                 }
             }
             Op::Divide => {
@@ -178,45 +209,64 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                 )?;
                 match (a, b) {
                     (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                        stack.push(Node::Integer { val: a / b })
+                        stack.push(Node::Integer {
+                            val: a.clone() / b.clone(),
+                        })
                     }
-                    (Node::Float { val: a }, Node::Float { val: b }) => {
-                        stack.push(Node::Float { val: a / b })
+                    (Node::Float { val: a }, Node::Float { val: b }) => stack.push(Node::Float {
+                        val: a.clone() / b.clone(),
+                    }),
+                    (a, b) => {
+                        return Err(FangErr::OperationUnsupported {
+                            op: "divide".to_string(),
+                            lhs: a.inspect(),
+                            rhs: b.inspect(),
+                            scope: scope.name.clone(),
+                        })
                     }
-                    _ => return Err("Failed to divide".to_string()),
                 }
             }
             Op::Assign { name } => {
                 let val = stack.pop().unwrap();
-                scope.assign(name, val)?;
+                scope.assign(name.clone(), val)?;
             }
             Op::Declare { name, var_type } => {
                 let val = stack.pop().unwrap();
 
                 if let Some(t) = var_type {
-                    if t != val.get_type() {
-                        return Err(format!(
-                            "Specified type '{}' does not match given type, '{}'",
-                            t,
-                            val.get_type()
-                        ));
+                    if *t != val.get_type() {
+                        return Err(FangErr::TypeMismatch {
+                            expected: t.clone(),
+                            found: val.get_type(),
+                            scope: scope.name.clone(),
+                        });
                     }
                 }
 
-                scope.declare(name, val)?;
+                scope.declare(name.clone(), val)?;
             }
             Op::Load { name } => {
                 if let Some(value) = scope.get(&name) {
                     stack.push(value.clone());
                 } else {
-                    return Err(format!(
-                        "Variable '{}' not found in scope {}",
-                        name, scope.name
-                    ));
+                    return Err(FangErr::UndeclaredVariable {
+                        name: name.clone(),
+                        scope: scope.name.clone(),
+                    });
                 }
             }
-            Op::Function { name, args, body } => {
-                scope.put_fn(name, args, body)?;
+            Op::Function {
+                name,
+                args,
+                body,
+                return_type,
+            } => {
+                scope.put_fn(
+                    name.clone(),
+                    args.clone(),
+                    body.clone(),
+                    return_type.clone(),
+                )?;
             }
             Op::Call { name } => {
                 let args = scope.get_args(&name).expect(&format!(
@@ -230,18 +280,22 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                         .expect(&format!("Expected argument for function '{}'", name));
 
                     if !prop.compare_type(&arg) {
-                        return Err(format!(
-                            "Type mismatch for argument '{}'.\nExpected {}, got {}.",
-                            arg.inspect(),
-                            arg.get_type(),
-                            prop.get_type()
-                        ));
+                        return Err(FangErr::TypeMismatch {
+                            expected: arg.get_type(),
+                            found: prop.get_type(),
+                            scope: scope.name.clone(),
+                        });
                     }
 
                     props.push(prop);
                 }
 
-                scope.call(&name, props)?;
+                let insert = scope.call(&name, props)?;
+                ops = [ops[..=i].to_vec(), insert, ops[i + 1..].to_vec()]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<Op>>();
+
             }
             Op::BuiltinCall { body } => {
                 if let Some(val) = body.0(scope) {
@@ -249,9 +303,14 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<(), String> {
                 };
             }
 
-            Op::Print => println!("{}", stack.pop().unwrap().inspect()),
+            Op::Return => {
+                return Ok(stack.pop());
+            }
         }
+
+        i += 1;
     }
 
-    Ok(())
+    // assert!(stack.is_empty());
+    Ok(None)
 }

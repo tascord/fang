@@ -1,0 +1,62 @@
+[
+    Function {
+        name: "concat",
+        args: [
+            TypedVariable {
+                var_type: "string",
+                name: "a",
+            },
+            TypedVariable {
+                var_type: "string",
+                name: "b",
+            },
+        ],
+        body: [
+            Return {
+                value: Add {
+                    lhs: Add {
+                        lhs: Identifier {
+                            val: "a",
+                        },
+                        rhs: String {
+                            val: " ",
+                        },
+                    },
+                    rhs: Identifier {
+                        val: "b",
+                    },
+                },
+            },
+        ],
+        return_type: Some(
+            "string",
+        ),
+    },
+    Declaration {
+        name: "c",
+        rhs: Some(
+            Call {
+                name: "concat",
+                args: [
+                    String {
+                        val: "Hello",
+                    },
+                    String {
+                        val: "World",
+                    },
+                ],
+            },
+        ),
+        var_type: Some(
+            "string",
+        ),
+    },
+    Call {
+        name: "console.ln",
+        args: [
+            Identifier {
+                val: "c",
+            },
+        ],
+    },
+]

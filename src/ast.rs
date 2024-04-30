@@ -1,9 +1,8 @@
 use std::{
-    fmt::{self, Debug, Formatter},
-    rc::Rc,
+    fmt::{self, Debug, Formatter}, mem, rc::Rc
 };
 
-use crate::scope::Scope;
+use crate::{errs::FangErr, scope::Scope};
 
 #[derive(Clone)]
 pub struct BuiltinFnBody(pub Rc<dyn Fn(&Scope) -> Option<Node>>);
@@ -72,6 +71,7 @@ pub enum Node {
         name: String,
         args: Box<Vec<Node>>,
         body: Box<Vec<Node>>,
+        return_type: Option<String>,
     },
     Call {
         name: String,
@@ -81,9 +81,15 @@ pub enum Node {
         name: String,
         args: Box<Vec<Node>>,
         body: BuiltinFnBody,
+        return_type: Option<String>,
     },
 
+    Struct {
+        name: String,
+        fields: Box<Vec<Node>>,
+    },
     Object {
+        typed: String,
         fields: Box<Vec<Node>>,
     },
     Field {
@@ -91,10 +97,16 @@ pub enum Node {
         value: Box<Node>,
     },
 
-    Empty,
-    Out {
-        val: Box<Node>,
+    Trait {
+        name: String,
+        fields: Box<Vec<Node>>,
     },
+
+    Return {
+        value: Box<Node>,
+    },
+
+    Empty,
 }
 
 impl Node {
@@ -153,21 +165,19 @@ impl Node {
             Node::Identifier { val } => val.to_string(),
             Node::TypedVariable { name, .. } => name.to_string(),
             Node::Function { name, .. } => format!("<Function: {name}>"),
-            Node::Object { fields } => {
-                let mut res = "{".to_string();
-                for field in fields.iter() {
-                    match field {
-                        Node::Field { name, value } => {
-                            if res.len() > 1 {
-                                res.push_str(", ");
-                            }
-                            res.push_str(&format!("{}: {}", name, value.inspect()));
-                        }
-                        _ => {}
-                    }
-                }
-                res.push_str("}");
-                res
+            Node::Object { typed, fields } => {
+                format!(
+                    "{typed} {{{}}}",
+                    fields
+                        .iter()
+                        .map(|field| match field {
+                            Node::Field { name, value } => format!("{}: {}", name, value.inspect()),
+                            Node::Function { name, .. } => format!("<Function: {name}>"),
+                            _ => unreachable!(),
+                        })
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
             }
 
             a => format!("<Internal: {:?}>", a.get_type()),
@@ -183,7 +193,7 @@ impl Node {
             Node::TypedVariable { var_type, .. } => var_type.clone(),
             Node::Function { name, .. } => format!("<Function: '{}'>", name),
 
-            _ => format!("<Internal: {:?}>", self),
+            _ => self.inspect(),
         }
     }
 
@@ -195,12 +205,12 @@ impl Node {
         match (self, other) {
             (Node::TypedVariable { var_type, .. }, n) => var_type == &n.get_type(),
             (n, Node::TypedVariable { var_type, .. }) => var_type == &n.get_type(),
-            _ => self.get_type() == other.get_type(),
+            _ => mem::discriminant(self) == mem::discriminant(other),
         }
     }
 }
 
-fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, String> {
+fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, FangErr> {
     match expr {
         Node::Add { lhs, rhs } => {
             let (a, b) = standardize_types(lhs, rhs, scope)?;
@@ -212,7 +222,12 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, String> {
                 (Node::String { val: a }, Node::String { val: b }) => {
                     Ok(Node::String { val: a + &b })
                 }
-                _ => Err("Failed to add".to_string()),
+                (a, b) => Err(FangErr::OperationUnsupported {
+                    op: "add".to_string(),
+                    lhs: a.get_type(),
+                    rhs: b.get_type(),
+                    scope: scope.name.clone(),
+                }),
             }
         }
 
@@ -223,7 +238,12 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, String> {
                     Ok(Node::Integer { val: a - b })
                 }
                 (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a - b }),
-                _ => Err("Failed to subtract".to_string()),
+                (a, b) => Err(FangErr::OperationUnsupported {
+                    op: "subtract".to_string(),
+                    lhs: a.get_type(),
+                    rhs: b.get_type(),
+                    scope: scope.name.clone(),
+                }),
             }
         }
 
@@ -234,7 +254,12 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, String> {
                     Ok(Node::Integer { val: a * b })
                 }
                 (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a * b }),
-                _ => Err("Failed to multiply".to_string()),
+                (a, b) => Err(FangErr::OperationUnsupported {
+                    op: "multiply".to_string(),
+                    lhs: a.get_type(),
+                    rhs: b.get_type(),
+                    scope: scope.name.clone(),
+                }),
             }
         }
 
@@ -245,7 +270,12 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, String> {
                     Ok(Node::Integer { val: a / b })
                 }
                 (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a / b }),
-                _ => Err("Failed to divide".to_string()),
+                (a, b) => Err(FangErr::OperationUnsupported {
+                    op: "divide".to_string(),
+                    lhs: a.get_type(),
+                    rhs: b.get_type(),
+                    scope: scope.name.clone(),
+                }),
             }
         }
 
@@ -257,18 +287,28 @@ pub fn standardize_types(
     mut a: Box<Node>,
     mut b: Box<Node>,
     scope: &Scope,
-) -> Result<(Node, Node), String> {
+) -> Result<(Node, Node), FangErr> {
     if a.is_id() {
         a = match scope.get(&a.inspect()) {
             Some(n) => Box::new(n.clone()),
-            None => return Err(format!("Variable '{}' not declared", a.inspect())),
+            None => {
+                return Err(FangErr::UndeclaredVariable {
+                    name: a.inspect(),
+                    scope: scope.name.clone(),
+                })
+            }
         };
     }
 
     if b.is_id() {
         b = match scope.get(&b.inspect()) {
             Some(n) => Box::new(n.clone()),
-            None => return Err(format!("Variable '{}' not declared", a.inspect())),
+            None => {
+                return Err(FangErr::UndeclaredVariable {
+                    name: a.inspect(),
+                    scope: scope.name.clone(),
+                })
+            }
         };
     }
 
@@ -310,5 +350,10 @@ pub fn standardize_types(
     }
 
     // TODO: Exhaust
-    return Err("Failed to standardize types".to_string());
+    Err(FangErr::OperationUnsupported {
+        op: "coerce".to_string(),
+        lhs: a.get_type(),
+        rhs: b.get_type(),
+        scope: scope.name.clone(),
+    })
 }

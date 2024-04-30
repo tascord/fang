@@ -12,6 +12,16 @@ Statement -> FRes<Node>:
     | Function { $1 }
     ;
 
+StatementOrReturnList -> FRes<Vec<Node>>:
+    StatementOrReturnList StatementOrReturn { append($1.map_err(|_| ())?, $2.map_err(|_| ())?) }
+    | { Ok(vec![]) }
+    ;
+
+StatementOrReturn -> FRes<Node>:
+    Statement { $1 }
+    | 'RETURN' Expression ';' { Ok(Node::Return { value: Box::new($2?) }) }
+    ;
+
 Expression -> FRes<Node>:
     Addition { $1 }
     | FunctionCall { $1 }
@@ -83,11 +93,16 @@ PrimaryExpression -> FRes<Node>:
     | 'BOOLEAN' { parse_bool($lexer.span_str(($1.map_err(|_| ())?).span())) }
     | 'STRING' { parse_string($lexer.span_str(($1.map_err(|_| ())?).span())) }
     | Object { $1 }
+    | Struct { $1 }
+    | Trait { $1 }
     ;
 
 Function -> FRes<Node>:
-    'FUNCTION' 'IDENTIFIER' 'LPAREN' TypedVariableList 'RPAREN' 'LBRACE' StatementList 'RBRACE' {
-        Ok(Node::Function { name: $lexer.span_str(($2.map_err(|_| ())?).span()).to_string(), args: Box::new($4.map_err(|_| ())?), body: Box::new($7.map_err(|_| ())?)})
+    'FUNCTION' 'IDENTIFIER' 'LPAREN' TypedVariableList 'RPAREN' 'COLON' 'IDENTIFIER' 'LBRACE' StatementOrReturnList 'RBRACE' {
+        Ok(Node::Function { name: $lexer.span_str(($2.map_err(|_| ())?).span()).to_string(), args: Box::new($4.map_err(|_| ())?), body: Box::new($9.map_err(|_| ())?), return_type: Some($lexer.span_str(($7.map_err(|_| ())?).span()).to_string()) })
+    }
+    | 'FUNCTION' 'IDENTIFIER' 'LPAREN' TypedVariableList 'RPAREN' 'LBRACE' StatementOrReturnList 'RBRACE' {
+        Ok(Node::Function { name: $lexer.span_str(($2.map_err(|_| ())?).span()).to_string(), args: Box::new($4.map_err(|_| ())?), body: Box::new($7.map_err(|_| ())?), return_type: None })
     }
     ;
 
@@ -95,9 +110,13 @@ FunctionCall -> FRes<Node>:
     'IDENTIFIER' 'LPAREN' ExpressionList 'RPAREN' { Ok(Node::Call { name: $lexer.span_str(($1.map_err(|_| ())?).span()).to_string(), args: Box::new($3.map_err(|_| ())?) }) }
     ;
 
+Struct -> FRes<Node>:
+    'STRUCT' 'IDENTIFIER' 'LBRACE' TypedVariableList 'RBRACE' { Ok(Node::Struct { name: $lexer.span_str(($2.map_err(|_| ())?).span()).to_string(), fields: Box::new($4.map_err(|_| ())?) }) }
+    ;
+
 Object -> FRes<Node>:
-    'LBRACE' 'RBRACE' { Ok(Node::Object { fields: Box::new(vec![]) }) }
-    | 'LBRACE' ObjectFields 'RBRACE' { Ok(Node::Object { fields: Box::new($2.map_err(|_| ())?) }) }
+    'IDENTIFIER' 'LBRACE' 'RBRACE' { Ok(Node::Object { typed: $lexer.span_str(($1.map_err(|_| ())?).span()).to_string(), fields: Box::new(vec![]) }) }
+    | 'IDENTIFIER' 'LBRACE' ObjectFields 'RBRACE' { Ok(Node::Object { typed:$lexer.span_str(($1.map_err(|_| ())?).span()).to_string(), fields: Box::new($3.map_err(|_| ())?) }) }
     ;
 
 ObjectFields -> FRes<Vec<Node>>:
@@ -107,6 +126,19 @@ ObjectFields -> FRes<Vec<Node>>:
 
 ObjectField -> FRes<Node>:
     'IDENTIFIER' 'COLON' Expression { Ok(Node::Field { name: $lexer.span_str(($1.map_err(|_| ())?).span()).to_string(), value: Box::new($3.map_err(|_| ())?) }) }
+    ;
+
+Trait -> FRes<Node>:
+    'TRAIT' 'IDENTIFIER' 'LBRACE' TraitFields 'RBRACE' { Ok(Node::Trait { name: $lexer.span_str(($2.map_err(|_| ())?).span()).to_string(), fields: Box::new($4.map_err(|_| ())?) }) }
+    ;
+
+TraitFields -> FRes<Vec<Node>>:
+    TraitFields ',' TraitField { append($1.map_err(|_| ())?, $3.map_err(|_| ())?)}
+    | TraitField { Ok(vec![$1.map_err(|_| ())?]) }
+    ;
+
+TraitField -> FRes<Node>:
+    Function { $1 }
     ;
 
 %%

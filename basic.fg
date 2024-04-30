@@ -1,1 +1,6 @@
-let flora = { age: 19, favourite_colour: "pink" }; console.ln(flora.favourite_colour);
+fn concat(a: string, b: string): string {
+    return a + " " + b;
+}
+
+let c: string = concat("Hello", "World");
+console.ln(c);
