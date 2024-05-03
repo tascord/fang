@@ -1,62 +1,545 @@
 [
-    Function {
-        name: "concat",
-        args: [
+    Struct {
+        name: "Vector",
+        fields: [
             TypedVariable {
-                var_type: "string",
-                name: "a",
+                var_type: "int",
+                name: "x",
+                span: Spans {
+                    line: "    x: int,\r",
+                    line_span: (
+                        2,
+                        2,
+                    ),
+                    col_span: (
+                        5,
+                        11,
+                    ),
+                },
             },
             TypedVariable {
-                var_type: "string",
-                name: "b",
-            },
-        ],
-        body: [
-            Return {
-                value: Add {
-                    lhs: Add {
-                        lhs: Identifier {
-                            val: "a",
-                        },
-                        rhs: String {
-                            val: " ",
-                        },
-                    },
-                    rhs: Identifier {
-                        val: "b",
-                    },
+                var_type: "int",
+                name: "y",
+                span: Spans {
+                    line: "    y: int\r",
+                    line_span: (
+                        3,
+                        3,
+                    ),
+                    col_span: (
+                        5,
+                        11,
+                    ),
                 },
             },
         ],
-        return_type: Some(
-            "string",
+        span: Spans {
+            line: "struct Vector {\r\n    x: int,\r\n    y: int\r\n};\r",
+            line_span: (
+                1,
+                4,
+            ),
+            col_span: (
+                1,
+                2,
+            ),
+        },
+    },
+    Trait {
+        name: "AddTogether",
+        fields: [
+            FunctionOutline {
+                name: "add_together",
+                args: [
+                    TypedVariable {
+                        var_type: "self",
+                        name: "self",
+                        span: Spans {
+                            line: "    fn add_together(self, other: self): self;\r",
+                            line_span: (
+                                7,
+                                7,
+                            ),
+                            col_span: (
+                                21,
+                                25,
+                            ),
+                        },
+                    },
+                    TypedVariable {
+                        var_type: "self",
+                        name: "other",
+                        span: Spans {
+                            line: "    fn add_together(self, other: self): self;\r",
+                            line_span: (
+                                7,
+                                7,
+                            ),
+                            col_span: (
+                                27,
+                                38,
+                            ),
+                        },
+                    },
+                ],
+                return_type: Some(
+                    "self",
+                ),
+                span: Spans {
+                    line: "    fn add_together(self, other: self): self;\r",
+                    line_span: (
+                        7,
+                        7,
+                    ),
+                    col_span: (
+                        5,
+                        46,
+                    ),
+                },
+            },
+        ],
+        span: Spans {
+            line: "trait AddTogether {\r\n    fn add_together(self, other: self): self;\r\n};\r",
+            line_span: (
+                6,
+                8,
+            ),
+            col_span: (
+                1,
+                2,
+            ),
+        },
+    },
+    TraitImpl {
+        trait_name: "AddTogether",
+        type_name: "Vector",
+        fields: [
+            Function {
+                name: "add_together",
+                args: [
+                    TypedVariable {
+                        var_type: "self",
+                        name: "self",
+                        span: Spans {
+                            line: "    fn add_together(self, other: Vector): Vector {\r",
+                            line_span: (
+                                11,
+                                11,
+                            ),
+                            col_span: (
+                                21,
+                                25,
+                            ),
+                        },
+                    },
+                    TypedVariable {
+                        var_type: "Vector",
+                        name: "other",
+                        span: Spans {
+                            line: "    fn add_together(self, other: Vector): Vector {\r",
+                            line_span: (
+                                11,
+                                11,
+                            ),
+                            col_span: (
+                                27,
+                                40,
+                            ),
+                        },
+                    },
+                ],
+                body: [
+                    Return {
+                        value: Object {
+                            typed: "Vector",
+                            fields: [
+                                Field {
+                                    name: "x",
+                                    value: Add {
+                                        lhs: Identifier {
+                                            val: "self.x",
+                                            span: Spans {
+                                                line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                                line_span: (
+                                                    12,
+                                                    12,
+                                                ),
+                                                col_span: (
+                                                    28,
+                                                    34,
+                                                ),
+                                            },
+                                        },
+                                        rhs: Identifier {
+                                            val: "other.x",
+                                            span: Spans {
+                                                line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                                line_span: (
+                                                    12,
+                                                    12,
+                                                ),
+                                                col_span: (
+                                                    37,
+                                                    44,
+                                                ),
+                                            },
+                                        },
+                                        span: Spans {
+                                            line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                            line_span: (
+                                                12,
+                                                12,
+                                            ),
+                                            col_span: (
+                                                28,
+                                                44,
+                                            ),
+                                        },
+                                    },
+                                    span: Spans {
+                                        line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                        line_span: (
+                                            12,
+                                            12,
+                                        ),
+                                        col_span: (
+                                            25,
+                                            44,
+                                        ),
+                                    },
+                                },
+                                Field {
+                                    name: "y",
+                                    value: Add {
+                                        lhs: Identifier {
+                                            val: "self.y",
+                                            span: Spans {
+                                                line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                                line_span: (
+                                                    12,
+                                                    12,
+                                                ),
+                                                col_span: (
+                                                    49,
+                                                    55,
+                                                ),
+                                            },
+                                        },
+                                        rhs: Identifier {
+                                            val: "other.y",
+                                            span: Spans {
+                                                line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                                line_span: (
+                                                    12,
+                                                    12,
+                                                ),
+                                                col_span: (
+                                                    58,
+                                                    65,
+                                                ),
+                                            },
+                                        },
+                                        span: Spans {
+                                            line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                            line_span: (
+                                                12,
+                                                12,
+                                            ),
+                                            col_span: (
+                                                49,
+                                                65,
+                                            ),
+                                        },
+                                    },
+                                    span: Spans {
+                                        line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                        line_span: (
+                                            12,
+                                            12,
+                                        ),
+                                        col_span: (
+                                            46,
+                                            65,
+                                        ),
+                                    },
+                                },
+                            ],
+                            span: Spans {
+                                line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                                line_span: (
+                                    12,
+                                    12,
+                                ),
+                                col_span: (
+                                    16,
+                                    67,
+                                ),
+                            },
+                        },
+                        span: Spans {
+                            line: "        return Vector { x: self.x + other.x, y: self.y + other.y };\r",
+                            line_span: (
+                                12,
+                                12,
+                            ),
+                            col_span: (
+                                9,
+                                68,
+                            ),
+                        },
+                    },
+                ],
+                return_type: Some(
+                    "Vector",
+                ),
+                span: Spans {
+                    line: "    fn add_together(self, other: Vector): Vector {\r\n        return Vector { x: self.x + other.x, y: self.y + other.y };\r\n    }\r",
+                    line_span: (
+                        11,
+                        13,
+                    ),
+                    col_span: (
+                        5,
+                        6,
+                    ),
+                },
+            },
+        ],
+        span: Spans {
+            line: "impl AddTogether for Vector {\r\n    fn add_together(self, other: Vector): Vector {\r\n        return Vector { x: self.x + other.x, y: self.y + other.y };\r\n    }\r\n};\r",
+            line_span: (
+                10,
+                14,
+            ),
+            col_span: (
+                1,
+                2,
+            ),
+        },
+    },
+    Declaration {
+        name: "a",
+        rhs: Some(
+            Object {
+                typed: "Vector",
+                fields: [
+                    Field {
+                        name: "x",
+                        value: Integer {
+                            val: 1,
+                            span: Spans {
+                                line: "let a = Vector { x: 1, y: 2 };\r",
+                                line_span: (
+                                    17,
+                                    17,
+                                ),
+                                col_span: (
+                                    21,
+                                    22,
+                                ),
+                            },
+                        },
+                        span: Spans {
+                            line: "let a = Vector { x: 1, y: 2 };\r",
+                            line_span: (
+                                17,
+                                17,
+                            ),
+                            col_span: (
+                                18,
+                                22,
+                            ),
+                        },
+                    },
+                    Field {
+                        name: "y",
+                        value: Integer {
+                            val: 2,
+                            span: Spans {
+                                line: "let a = Vector { x: 1, y: 2 };\r",
+                                line_span: (
+                                    17,
+                                    17,
+                                ),
+                                col_span: (
+                                    27,
+                                    28,
+                                ),
+                            },
+                        },
+                        span: Spans {
+                            line: "let a = Vector { x: 1, y: 2 };\r",
+                            line_span: (
+                                17,
+                                17,
+                            ),
+                            col_span: (
+                                24,
+                                28,
+                            ),
+                        },
+                    },
+                ],
+                span: Spans {
+                    line: "let a = Vector { x: 1, y: 2 };\r",
+                    line_span: (
+                        17,
+                        17,
+                    ),
+                    col_span: (
+                        9,
+                        30,
+                    ),
+                },
+            },
         ),
+        var_type: None,
+        span: Spans {
+            line: "let a = Vector { x: 1, y: 2 };\r",
+            line_span: (
+                17,
+                17,
+            ),
+            col_span: (
+                1,
+                30,
+            ),
+        },
+    },
+    Declaration {
+        name: "b",
+        rhs: Some(
+            Object {
+                typed: "Vector",
+                fields: [
+                    Field {
+                        name: "x",
+                        value: Integer {
+                            val: 3,
+                            span: Spans {
+                                line: "let b = Vector { x: 3, y: 4 };\r",
+                                line_span: (
+                                    18,
+                                    18,
+                                ),
+                                col_span: (
+                                    21,
+                                    22,
+                                ),
+                            },
+                        },
+                        span: Spans {
+                            line: "let b = Vector { x: 3, y: 4 };\r",
+                            line_span: (
+                                18,
+                                18,
+                            ),
+                            col_span: (
+                                18,
+                                22,
+                            ),
+                        },
+                    },
+                    Field {
+                        name: "y",
+                        value: Integer {
+                            val: 4,
+                            span: Spans {
+                                line: "let b = Vector { x: 3, y: 4 };\r",
+                                line_span: (
+                                    18,
+                                    18,
+                                ),
+                                col_span: (
+                                    27,
+                                    28,
+                                ),
+                            },
+                        },
+                        span: Spans {
+                            line: "let b = Vector { x: 3, y: 4 };\r",
+                            line_span: (
+                                18,
+                                18,
+                            ),
+                            col_span: (
+                                24,
+                                28,
+                            ),
+                        },
+                    },
+                ],
+                span: Spans {
+                    line: "let b = Vector { x: 3, y: 4 };\r",
+                    line_span: (
+                        18,
+                        18,
+                    ),
+                    col_span: (
+                        9,
+                        30,
+                    ),
+                },
+            },
+        ),
+        var_type: None,
+        span: Spans {
+            line: "let b = Vector { x: 3, y: 4 };\r",
+            line_span: (
+                18,
+                18,
+            ),
+            col_span: (
+                1,
+                30,
+            ),
+        },
     },
     Declaration {
         name: "c",
         rhs: Some(
             Call {
-                name: "concat",
+                name: "a.add_together",
                 args: [
-                    String {
-                        val: "Hello",
-                    },
-                    String {
-                        val: "World",
+                    Identifier {
+                        val: "b",
+                        span: Spans {
+                            line: "let c = a.add_together(b);",
+                            line_span: (
+                                20,
+                                20,
+                            ),
+                            col_span: (
+                                24,
+                                25,
+                            ),
+                        },
                     },
                 ],
+                span: Spans {
+                    line: "let c = a.add_together(b);",
+                    line_span: (
+                        20,
+                        20,
+                    ),
+                    col_span: (
+                        9,
+                        26,
+                    ),
+                },
             },
         ),
-        var_type: Some(
-            "string",
-        ),
-    },
-    Call {
-        name: "console.ln",
-        args: [
-            Identifier {
-                val: "c",
-            },
-        ],
+        var_type: None,
+        span: Spans {
+            line: "let c = a.add_together(b);",
+            line_span: (
+                20,
+                20,
+            ),
+            col_span: (
+                1,
+                26,
+            ),
+        },
     },
 ]

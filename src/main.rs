@@ -1,12 +1,11 @@
 use std::{
-    env::args,
-    fs::{self, File},
-    io::Read,
+    env::args, fs::{self, File}, io::Read, path::Path, sync::Mutex
 };
 
 use bytecode::eval_bytecode;
 use lrlex::lrlex_mod;
 use lrpar::lrpar_mod;
+use once_cell::sync::Lazy;
 use scope::GLOBAL_SCOPE;
 
 lrlex_mod!("fang.l");
@@ -17,6 +16,8 @@ pub mod bytecode;
 pub mod errs;
 pub mod scope;
 
+pub const FILE_NAME: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
+
 fn main() {
     let args: Vec<String> = args().collect();
     if args.len() < 1 {
@@ -26,8 +27,12 @@ fn main() {
 
     let input = {
         let mut s = String::new();
-        let mut f = File::open(&args[1]).unwrap();
+        let p = Path::new(&args[1]);
+        let mut f = File::open(p).unwrap();
         f.read_to_string(&mut s).unwrap();
+
+        FILE_NAME.lock().unwrap().push_str(p.file_name().unwrap().to_str().unwrap());
+
         s
     };
 

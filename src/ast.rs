@@ -1,8 +1,10 @@
 use std::{
-    fmt::{self, Debug, Formatter}, mem, rc::Rc
+    fmt::{self, Debug, Formatter},
+    mem,
+    rc::Rc,
 };
 
-use crate::{errs::FangErr, scope::Scope};
+use crate::{errs::FangErr, scope::Scope, FILE_NAME};
 
 #[derive(Clone)]
 pub struct BuiltinFnBody(pub Rc<dyn Fn(&Scope) -> Option<Node>>);
@@ -19,91 +21,170 @@ impl PartialEq for BuiltinFnBody {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Spans {
+    line: String,
+    line_span: (usize, usize),
+    col_span: (usize, usize),
+}
+
+impl Spans {
+    pub fn new(l: &str, s: ((usize, usize), (usize, usize))) -> Self {
+        Self {
+            line: l.to_string(),
+            line_span: (s.0 .0, s.1 .0),
+            col_span: (s.0 .1, s.1 .1),
+        }
+    }
+
+    pub fn snippet(&self) -> String {
+        vec![
+            format!(
+                "At {}:{}:{}",
+                FILE_NAME.lock().unwrap(),
+                self.line_span.0,
+                self.col_span.0
+            ),
+            format!(""),
+            format!("{}", self.line),
+            format!(
+                "{}{}",
+                " ".repeat(self.col_span.0),
+                "^".repeat(self.col_span.1 - self.col_span.0)
+            ),
+        ]
+        .join("\n")
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            line: "".to_string(),
+            line_span: (0, 0),
+            col_span: (0, 0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Add {
         lhs: Box<Node>,
         rhs: Box<Node>,
+        span: Spans,
     },
     Subtract {
         lhs: Box<Node>,
         rhs: Box<Node>,
+        span: Spans,
     },
     Multiply {
         lhs: Box<Node>,
         rhs: Box<Node>,
+        span: Spans,
     },
     Divide {
         lhs: Box<Node>,
         rhs: Box<Node>,
+        span: Spans,
     },
 
     Integer {
         val: u64,
+        span: Spans,
     },
     Float {
         val: f64,
+        span: Spans,
     },
     String {
         val: String,
+        span: Spans,
     },
     Boolean {
         val: bool,
+        span: Spans,
     },
 
     Identifier {
         val: String,
+        span: Spans,
     },
     Declaration {
         name: String,
         rhs: Option<Box<Node>>,
         var_type: Option<String>,
+        span: Spans,
     },
     Assignment {
         name: String,
         rhs: Box<Node>,
+        span: Spans,
     },
     TypedVariable {
         var_type: String,
         name: String,
+        span: Spans,
+    },
+    SelfRef {
+        span: Spans,
     },
 
+    FunctionOutline {
+        name: String,
+        args: Box<Vec<Node>>,
+        return_type: Option<String>,
+        span: Spans,
+    },
     Function {
         name: String,
         args: Box<Vec<Node>>,
         body: Box<Vec<Node>>,
         return_type: Option<String>,
+        span: Spans,
     },
     Call {
         name: String,
         args: Box<Vec<Node>>,
+        span: Spans,
     },
     BuiltinFn {
         name: String,
         args: Box<Vec<Node>>,
         body: BuiltinFnBody,
         return_type: Option<String>,
+        span: Spans,
     },
 
     Struct {
         name: String,
         fields: Box<Vec<Node>>,
+        span: Spans,
     },
     Object {
         typed: String,
         fields: Box<Vec<Node>>,
+        span: Spans,
     },
     Field {
         name: String,
         value: Box<Node>,
+        span: Spans,
     },
 
     Trait {
         name: String,
         fields: Box<Vec<Node>>,
+        span: Spans,
+    },
+    TraitImpl {
+        trait_name: String,
+        type_name: String,
+        fields: Box<Vec<Node>>,
+        span: Spans,
     },
 
     Return {
         value: Box<Node>,
+        span: Spans,
     },
 
     Empty,
@@ -158,20 +239,21 @@ impl Node {
 
     pub fn inspect(&self) -> String {
         match self {
-            Node::Integer { val } => val.to_string(),
-            Node::Float { val } => val.to_string(),
-            Node::String { val } => val.to_string(),
-            Node::Boolean { val } => val.to_string(),
-            Node::Identifier { val } => val.to_string(),
+            Node::Integer { val, .. } => val.to_string(),
+            Node::Float { val, .. } => val.to_string(),
+            Node::String { val, .. } => val.to_string(),
+            Node::Boolean { val, .. } => val.to_string(),
+            Node::Identifier { val, .. } => val.to_string(),
             Node::TypedVariable { name, .. } => name.to_string(),
             Node::Function { name, .. } => format!("<Function: {name}>"),
-            Node::Object { typed, fields } => {
+            Node::Object { typed, fields, .. } => {
                 format!(
                     "{typed} {{{}}}",
                     fields
                         .iter()
                         .map(|field| match field {
-                            Node::Field { name, value } => format!("{}: {}", name, value.inspect()),
+                            Node::Field { name, value, .. } =>
+                                format!("{}: {}", name, value.inspect()),
                             Node::Function { name, .. } => format!("<Function: {name}>"),
                             _ => unreachable!(),
                         })
@@ -181,6 +263,42 @@ impl Node {
             }
 
             a => format!("<Internal: {:?}>", a.get_type()),
+        }
+    }
+
+    pub fn span(&self) -> Spans {
+        match self {
+            Node::Add { span, .. } => span.clone(),
+            Node::Subtract { span, .. } => span.clone(),
+            Node::Multiply { span, .. } => span.clone(),
+            Node::Divide { span, .. } => span.clone(),
+
+            Node::Integer { span, .. } => span.clone(),
+            Node::Float { span, .. } => span.clone(),
+            Node::String { span, .. } => span.clone(),
+            Node::Boolean { span, .. } => span.clone(),
+
+            Node::Identifier { span, .. } => span.clone(),
+            Node::Declaration { span, .. } => span.clone(),
+            Node::Assignment { span, .. } => span.clone(),
+            Node::TypedVariable { span, .. } => span.clone(),
+            Node::SelfRef { span, .. } => span.clone(),
+
+            Node::FunctionOutline { span, .. } => span.clone(),
+            Node::Function { span, .. } => span.clone(),
+            Node::Call { span, .. } => span.clone(),
+            Node::BuiltinFn { span, .. } => span.clone(),
+
+            Node::Struct { span, .. } => span.clone(),
+            Node::Object { span, .. } => span.clone(),
+            Node::Field { span, .. } => span.clone(),
+
+            Node::Trait { span, .. } => span.clone(),
+            Node::TraitImpl { span, .. } => span.clone(),
+
+            Node::Return { span, .. } => span.clone(),
+
+            Node::Empty => Spans::empty(),
         }
     }
 
@@ -212,17 +330,23 @@ impl Node {
 
 fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, FangErr> {
     match expr {
-        Node::Add { lhs, rhs } => {
+        Node::Add { lhs, rhs, span } => {
             let (a, b) = standardize_types(lhs, rhs, scope)?;
             match (a, b) {
-                (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                    Ok(Node::Integer { val: a + b })
-                }
-                (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a + b }),
-                (Node::String { val: a }, Node::String { val: b }) => {
-                    Ok(Node::String { val: a + &b })
-                }
+                (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => Ok(Node::Integer {
+                    val: a + b,
+                    span: span.clone(),
+                }),
+                (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => Ok(Node::Float {
+                    val: a + b,
+                    span: span.clone(),
+                }),
+                (Node::String { val: a, .. }, Node::String { val: b, .. }) => Ok(Node::String {
+                    val: a + &b,
+                    span: span.clone(),
+                }),
                 (a, b) => Err(FangErr::OperationUnsupported {
+                    span,
                     op: "add".to_string(),
                     lhs: a.get_type(),
                     rhs: b.get_type(),
@@ -231,14 +355,19 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, FangErr> {
             }
         }
 
-        Node::Subtract { lhs, rhs } => {
+        Node::Subtract { lhs, rhs, span } => {
             let (a, b) = standardize_types(lhs, rhs, scope)?;
             match (a, b) {
-                (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                    Ok(Node::Integer { val: a - b })
-                }
-                (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a - b }),
+                (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => Ok(Node::Integer {
+                    val: a - b,
+                    span: span.clone(),
+                }),
+                (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => Ok(Node::Float {
+                    val: a - b,
+                    span: span.clone(),
+                }),
                 (a, b) => Err(FangErr::OperationUnsupported {
+                    span,
                     op: "subtract".to_string(),
                     lhs: a.get_type(),
                     rhs: b.get_type(),
@@ -247,14 +376,19 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, FangErr> {
             }
         }
 
-        Node::Multiply { lhs, rhs } => {
+        Node::Multiply { lhs, rhs, span } => {
             let (a, b) = standardize_types(lhs, rhs, scope)?;
             match (a, b) {
-                (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                    Ok(Node::Integer { val: a * b })
-                }
-                (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a * b }),
+                (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => Ok(Node::Integer {
+                    val: a * b,
+                    span: span.clone(),
+                }),
+                (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => Ok(Node::Float {
+                    val: a * b,
+                    span: span.clone(),
+                }),
                 (a, b) => Err(FangErr::OperationUnsupported {
+                    span,
                     op: "multiply".to_string(),
                     lhs: a.get_type(),
                     rhs: b.get_type(),
@@ -263,14 +397,19 @@ fn eval_expr(expr: Node, scope: &Scope) -> Result<Node, FangErr> {
             }
         }
 
-        Node::Divide { lhs, rhs } => {
+        Node::Divide { lhs, rhs, span } => {
             let (a, b) = standardize_types(lhs, rhs, scope)?;
             match (a, b) {
-                (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                    Ok(Node::Integer { val: a / b })
-                }
-                (Node::Float { val: a }, Node::Float { val: b }) => Ok(Node::Float { val: a / b }),
+                (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => Ok(Node::Integer {
+                    val: a / b,
+                    span: span.clone(),
+                }),
+                (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => Ok(Node::Float {
+                    val: a / b,
+                    span: span.clone(),
+                }),
                 (a, b) => Err(FangErr::OperationUnsupported {
+                    span,
                     op: "divide".to_string(),
                     lhs: a.get_type(),
                     rhs: b.get_type(),
@@ -293,6 +432,7 @@ pub fn standardize_types(
             Some(n) => Box::new(n.clone()),
             None => {
                 return Err(FangErr::UndeclaredVariable {
+                    span: a.span(),
                     name: a.inspect(),
                     scope: scope.name.clone(),
                 })
@@ -305,6 +445,7 @@ pub fn standardize_types(
             Some(n) => Box::new(n.clone()),
             None => {
                 return Err(FangErr::UndeclaredVariable {
+                    span: b.span(),
                     name: a.inspect(),
                     scope: scope.name.clone(),
                 })
@@ -322,19 +463,31 @@ pub fn standardize_types(
 
     if a.is_str() || b.is_str() {
         return Ok((
-            Node::String { val: a.inspect() },
-            Node::String { val: b.inspect() },
+            Node::String {
+                val: a.inspect(),
+                span: a.span(),
+            },
+            Node::String {
+                val: b.inspect(),
+                span: b.span(),
+            },
         ));
     }
 
     if a.is_float() || b.is_float() {
         let a = match *a {
-            Node::Integer { val } => Node::Float { val: val as f64 },
+            Node::Integer { val, span } => Node::Float {
+                val: val as f64,
+                span,
+            },
             a => a,
         };
 
         let b = match *b {
-            Node::Integer { val } => Node::Float { val: val as f64 },
+            Node::Integer { val, span } => Node::Float {
+                val: val as f64,
+                span,
+            },
             b => b,
         };
 
@@ -349,8 +502,9 @@ pub fn standardize_types(
         return Ok((*a, *b));
     }
 
-    // TODO: Exhaust
+    // TODO: Exhaust, span
     Err(FangErr::OperationUnsupported {
+        span: a.span(),
         op: "coerce".to_string(),
         lhs: a.get_type(),
         rhs: b.get_type(),

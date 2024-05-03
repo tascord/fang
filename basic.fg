@@ -1,6 +1,20 @@
-fn concat(a: string, b: string): string {
-    return a + " " + b;
-}
+struct Vector {
+    x: int,
+    y: int
+};
 
-let c: string = concat("Hello", "World");
-console.ln(c);
+trait AddTogether {
+    fn add_together(self, other: self): self;
+};
+
+impl AddTogether for Vector {
+    fn add_together(self, other: Vector): Vector {
+        return Vector { x: self.x + other.x, y: self.y + other.y };
+    }
+};
+
+
+let a = Vector { x: 1, y: 2 };
+let b = Vector { x: 3, y: 4 };
+
+let c = a.add_together(b);

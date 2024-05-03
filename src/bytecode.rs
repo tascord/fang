@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use crate::{
-    ast::{standardize_types, BuiltinFnBody, Node},
+    ast::{standardize_types, BuiltinFnBody, Node, Spans},
     errs::FangErr,
     scope::Scope,
 };
@@ -10,13 +12,22 @@ pub enum Op {
         value: Node,
     },
 
-    Add,
-    Subtract,
-    Divide,
-    Multiply,
+    Add {
+        span: Spans,
+    },
+    Subtract {
+        span: Spans,
+    },
+    Divide {
+        span: Spans,
+    },
+    Multiply {
+        span: Spans,
+    },
 
     Assign {
         name: String,
+        span: Spans,
     },
     Declare {
         name: String,
@@ -28,16 +39,25 @@ pub enum Op {
 
     Call {
         name: String,
+        span: Spans,
     },
     Function {
         name: String,
         args: Vec<Node>,
         body: Vec<Node>,
         return_type: Option<String>,
+        span: Spans,
     },
 
     BuiltinCall {
         body: BuiltinFnBody,
+    },
+
+    ImplTrait {
+        trait_name: String,
+        type_name: String,
+        fields: Vec<Node>,
+        span: Spans,
     },
 
     Return,
@@ -45,30 +65,31 @@ pub enum Op {
 
 pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
     match node {
-        Node::Add { lhs, rhs } => {
+        Node::Add { lhs, rhs, span } => {
             ast_to_bytecode(*rhs, ops);
             ast_to_bytecode(*lhs, ops);
-            ops.push(Op::Add {});
+            ops.push(Op::Add { span });
         }
-        Node::Subtract { lhs, rhs } => {
+        Node::Subtract { lhs, rhs, span } => {
             ast_to_bytecode(*rhs, ops);
             ast_to_bytecode(*lhs, ops);
-            ops.push(Op::Subtract {});
+            ops.push(Op::Subtract { span });
         }
-        Node::Multiply { lhs, rhs } => {
+        Node::Multiply { lhs, rhs, span } => {
             ast_to_bytecode(*rhs, ops);
             ast_to_bytecode(*lhs, ops);
-            ops.push(Op::Multiply {});
+            ops.push(Op::Multiply { span });
         }
-        Node::Divide { lhs, rhs } => {
+        Node::Divide { lhs, rhs, span } => {
             ast_to_bytecode(*rhs, ops);
             ast_to_bytecode(*lhs, ops);
-            ops.push(Op::Divide {});
+            ops.push(Op::Divide { span });
         }
         Node::Declaration {
             name,
             var_type,
             rhs,
+            ..
         } => {
             if let Some(rhs) = rhs {
                 ast_to_bytecode(*rhs, ops);
@@ -76,38 +97,62 @@ pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
 
             ops.push(Op::Declare { name, var_type });
         }
-        Node::Assignment { name, rhs } => {
+        Node::Assignment { name, rhs, span } => {
             ast_to_bytecode(*rhs, ops);
-            ops.push(Op::Assign { name });
+            ops.push(Op::Assign { name, span });
         }
-        Node::Identifier { val } => {
+        Node::Identifier { val, .. } => {
             ops.push(Op::Load { name: val });
         }
-        Node::Object { fields, typed } => ops.push(Op::Push {
-            value: Node::Object { fields, typed },
+        Node::Object {
+            fields,
+            typed,
+            span,
+        } => ops.push(Op::Push {
+            value: Node::Object {
+                fields,
+                typed,
+                span,
+            },
         }),
         Node::Function {
             name,
             args,
             body,
             return_type,
+            span,
         } => {
             ops.push(Op::Function {
                 name,
                 args: *args,
                 body: *body,
                 return_type,
+                span,
             });
         }
-        Node::Call { name, args } => {
+        Node::Call { name, args, span } => {
             for arg in args.iter().rev() {
                 ast_to_bytecode(arg.clone(), ops);
             }
-            ops.push(Op::Call { name });
+            ops.push(Op::Call { name, span });
         }
         Node::BuiltinFn { body, .. } => ops.push(Op::BuiltinCall { body }),
 
-        Node::Return { value } => {
+        Node::TraitImpl {
+            trait_name,
+            type_name,
+            fields,
+            span,
+        } => {
+            ops.push(Op::ImplTrait {
+                trait_name,
+                type_name,
+                fields: *fields,
+                span,
+            });
+        }
+
+        Node::Return { value, .. } => {
             ast_to_bytecode(*value, ops);
             ops.push(Op::Return);
         }
@@ -129,21 +174,30 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
     while i < ops.len() {
         match &ops[i] {
             Op::Push { value } => stack.push(value.clone()),
-            Op::Add => {
+            Op::Add { span } => {
                 let (a, b) = standardize_types(
                     stack.pop().unwrap().boxed(),
                     stack.pop().unwrap().boxed(),
                     scope,
                 )?;
                 match (a, b) {
-                    (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                        stack.push(Node::Integer { val: a + b })
+                    (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => {
+                        stack.push(Node::Integer {
+                            val: a + b,
+                            span: span.clone(),
+                        })
                     }
-                    (Node::Float { val: a }, Node::Float { val: b }) => {
-                        stack.push(Node::Float { val: a + b })
+                    (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => {
+                        stack.push(Node::Float {
+                            val: a + b,
+                            span: span.clone(),
+                        })
                     }
-                    (Node::String { val: a }, Node::String { val: b }) => {
-                        stack.push(Node::String { val: a + &b })
+                    (Node::String { val: a, .. }, Node::String { val: b, .. }) => {
+                        stack.push(Node::String {
+                            val: a + &b,
+                            span: span.clone(),
+                        })
                     }
                     (a, b) => {
                         return Err(FangErr::OperationUnsupported {
@@ -155,18 +209,24 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                     }
                 }
             }
-            Op::Subtract => {
+            Op::Subtract { span } => {
                 let (a, b) = standardize_types(
                     stack.pop().unwrap().boxed(),
                     stack.pop().unwrap().boxed(),
                     scope,
                 )?;
                 match (a, b) {
-                    (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                        stack.push(Node::Integer { val: a - b })
+                    (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => {
+                        stack.push(Node::Integer {
+                            val: a - b,
+                            span: span.clone(),
+                        })
                     }
-                    (Node::Float { val: a }, Node::Float { val: b }) => {
-                        stack.push(Node::Float { val: a - b })
+                    (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => {
+                        stack.push(Node::Float {
+                            val: a - b,
+                            span: span.clone(),
+                        })
                     }
                     (a, b) => {
                         return Err(FangErr::OperationUnsupported {
@@ -178,18 +238,24 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                     }
                 }
             }
-            Op::Multiply => {
+            Op::Multiply { span } => {
                 let (a, b) = standardize_types(
                     stack.pop().unwrap().boxed(),
                     stack.pop().unwrap().boxed(),
                     scope,
                 )?;
                 match (a, b) {
-                    (Node::Integer { val: a }, Node::Integer { val: b }) => {
-                        stack.push(Node::Integer { val: a * b })
+                    (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => {
+                        stack.push(Node::Integer {
+                            val: a * b,
+                            span: span.clone(),
+                        })
                     }
-                    (Node::Float { val: a }, Node::Float { val: b }) => {
-                        stack.push(Node::Float { val: a * b })
+                    (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => {
+                        stack.push(Node::Float {
+                            val: a * b,
+                            span: span.clone(),
+                        })
                     }
                     (a, b) => {
                         return Err(FangErr::OperationUnsupported {
@@ -201,21 +267,25 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                     }
                 }
             }
-            Op::Divide => {
+            Op::Divide { span } => {
                 let (a, b) = standardize_types(
                     stack.pop().unwrap().boxed(),
                     stack.pop().unwrap().boxed(),
                     scope,
                 )?;
                 match (a, b) {
-                    (Node::Integer { val: a }, Node::Integer { val: b }) => {
+                    (Node::Integer { val: a, .. }, Node::Integer { val: b, .. }) => {
                         stack.push(Node::Integer {
                             val: a.clone() / b.clone(),
+                            span: span.clone(),
                         })
                     }
-                    (Node::Float { val: a }, Node::Float { val: b }) => stack.push(Node::Float {
-                        val: a.clone() / b.clone(),
-                    }),
+                    (Node::Float { val: a, .. }, Node::Float { val: b, .. }) => {
+                        stack.push(Node::Float {
+                            val: a.clone() / b.clone(),
+                            span: span.clone(),
+                        })
+                    }
                     (a, b) => {
                         return Err(FangErr::OperationUnsupported {
                             op: "divide".to_string(),
@@ -226,7 +296,7 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                     }
                 }
             }
-            Op::Assign { name } => {
+            Op::Assign { name, .. } => {
                 let val = stack.pop().unwrap();
                 scope.assign(name.clone(), val)?;
             }
@@ -260,6 +330,7 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                 args,
                 body,
                 return_type,
+                ..
             } => {
                 scope.put_fn(
                     name.clone(),
@@ -268,7 +339,7 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                     return_type.clone(),
                 )?;
             }
-            Op::Call { name } => {
+            Op::Call { name , ..} => {
                 let args = scope.get_args(&name).expect(&format!(
                     "Function '{}' not found in scope {}",
                     name, scope.name
@@ -295,7 +366,6 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
                     .into_iter()
                     .flatten()
                     .collect::<Vec<Op>>();
-
             }
             Op::BuiltinCall { body } => {
                 if let Some(val) = body.0(scope) {
@@ -305,6 +375,42 @@ pub fn eval_bytecode(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<Node>, 
 
             Op::Return => {
                 return Ok(stack.pop());
+            }
+            Op::ImplTrait {
+                trait_name,
+                type_name,
+                fields,
+                ..
+            } => {
+                let mut m = HashMap::new();
+                fields
+                    .iter()
+                    .map(|f| match f {
+                        Node::Function {
+                            name,
+                            args,
+                            body,
+                            return_type,
+                            ..
+                        } => {
+                            m.insert(
+                                name.clone(),
+                                (*args.clone(), *body.clone(), return_type.clone()),
+                            );
+
+                            Ok(())
+                        }
+                        _ => {
+                            return Err(FangErr::UnexpectedToken {
+                                expected: "Function".to_string(),
+                                found: f.inspect(),
+                                scope: scope.name.clone(),
+                            })
+                        }
+                    })
+                    .collect::<Result<Vec<_>, FangErr>>()?;
+
+                scope.implement(trait_name.clone(), type_name.clone(), m)?;
             }
         }
 
